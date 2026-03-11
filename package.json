@@ -1,12 +1,16 @@
 {
-  "name": "tiny-reactive",
-  "module": "index.ts",
-  "type": "module",
-  "private": true,
-  "devDependencies": {
-    "@types/bun": "latest"
-  },
-  "peerDependencies": {
-    "typescript": "^5"
-  }
+    "name": "tiny-reactive",
+    "type": "module",
+    "scripts": {
+        "build:wasm": "cd worker && wasm-pack build --target web && cp -r pkg ../public/",
+        "build:debug": "bun build ./src/index.ts --outdir ./public/dist --target browser --format esm --sourcemap=inline",
+        "build:release": "bun build ./src/index.ts --outdir ./public/dist --target browser --format esm --minify --sourcemap=none",
+        "dev": "bun run build:wasm && bun run build:debug && bun run serve",
+        "serve": "bunx http-server ./public -p 3000 -o",
+        "clean": "rm -rf ./public/dist ./public/pkg"
+    },
+    "devDependencies": {
+        "@types/node": "^20.0.0",
+        "bun-types": "^1.0.0"
+    }
 }
