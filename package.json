@@ -1,16 +1,20 @@
 {
-    "name": "tiny-reactive",
-    "type": "module",
-    "scripts": {
-        "build:wasm": "cd worker && wasm-pack build --target web && cp -r pkg ../public/",
-        "build:debug": "bun build ./src/index.ts --outdir ./public/dist --target browser --format esm --sourcemap=inline",
-        "build:release": "bun build ./src/index.ts --outdir ./public/dist --target browser --format esm --minify --sourcemap=none",
-        "dev": "bun run build:wasm && bun run build:debug && bun run serve",
-        "serve": "bunx http-server ./public -p 3000 -o",
-        "clean": "rm -rf ./public/dist ./public/pkg"
-    },
-    "devDependencies": {
-        "@types/node": "^20.0.0",
-        "bun-types": "^1.0.0"
-    }
+  "name": "tiny-reactive",
+  "type": "module",
+  "scripts": {
+    "build:wasm": "cd worker && wasm-pack build --target web --out-dir ../public/dist",
+    "build:legacy": "bun build ./src/modes/legacy/index.ts --outfile ./public/dist/legacy.js --target browser",
+    "build:worker": "bun build ./src/modes/worker/index.ts --outfile ./public/dist/worker-mode.js --target browser",
+    "build:worker-ts": "bun build ./src/modes/worker/worker.ts --outfile ./public/dist/worker.js --target browser",
+    "build:worker-sab": "bun build ./src/modes/worker-sab/index.ts --outfile ./public/dist/worker-sab-mode.js --target browser",
+    "build:worker-sab-ts": "bun build ./src/modes/worker-sab/worker.ts --outfile ./public/dist/worker-sab.js --target browser",
+    "build": "./build.zsh",
+    "serve:dev": "bunx http-server ./public -p 3000 -o 2>&1 | grep -v '.well-known'",
+    "serve:prod": "bun run server.ts",
+    "dev": "./build.zsh && bun run serve:dev",
+    "prod": "./build.zsh && bun run serve:prod"
+  },
+  "devDependencies": {
+    "bun-types": "^1.0.0"
+  }
 }

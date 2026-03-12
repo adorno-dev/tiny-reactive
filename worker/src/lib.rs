@@ -1,4 +1,5 @@
-mod models;
-mod app;
+pub mod core;
+pub mod examples;
 
-pub use app::App;
+// Re-export principais
+pub use core::runtime::{Runtime, Model, Store};

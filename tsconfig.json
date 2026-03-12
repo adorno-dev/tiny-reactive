@@ -1,24 +1,13 @@
 {
   "compilerOptions": {
-    // Environment
-    "target": "ES2022",
+    "target": "ES2024",
+    "lib": ["ES2024", "DOM", "DOM.Iterable", "WebWorker"],
     "module": "ESNext",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    
-    // Output
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "noEmit": true,
-    
-    // Strictness
     "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true,
-    
-    // Interop
     "esModuleInterop": true,
-    "isolatedModules": true,
     "skipLibCheck": true
   },
   "include": ["src/**/*"],
