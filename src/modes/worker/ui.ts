@@ -28,30 +28,16 @@ export class UIWorker {
     }
 
     private initWorker() {
-        console.log('🔴 1. initWorker() chamado');
         this.statusSpan.textContent = 'starting worker...';
         
-        const workerUrl = new URL('./worker.js', import.meta.url);
-        console.log('🔴 2. URL do worker:', workerUrl.href);
-        
-        try {
-            this.worker = new Worker(workerUrl, {
-                type: 'module'
-            });
-            console.log('🔴 3. Worker criado com sucesso:', this.worker);
-        } catch (error) {
-            console.log('🔴 3. ERRO ao criar worker:', error);
-            this.statusSpan.textContent = 'error';
-            return;
-        }
+        this.worker = new Worker(new URL('./worker.js', import.meta.url), {
+            type: 'module'
+        });
         
         this.worker.addEventListener('message', (e) => {
-            console.log('🔴 4. Mensagem RECEBIDA do worker:', e.data);
-            
             const { id, type, success, payload, error } = e.data;
             
             if (type === 'ready') {
-                console.log('🔴 5. Worker está pronto!');
                 this.statusSpan.textContent = 'ready';
                 this.loadConsoles();
                 return;
@@ -59,7 +45,6 @@ export class UIWorker {
             
             const pending = this.pendingRequests.get(id);
             if (pending) {
-                console.log('🔴 6. Resolvendo requisição:', id);
                 if (success) {
                     pending.resolve(payload);
                 } else {
@@ -70,49 +55,10 @@ export class UIWorker {
         });
         
         this.worker.addEventListener('error', (error) => {
-            console.log('🔴 4. ERRO no worker:', {
-                message: error.message,
-                filename: error.filename,
-                lineno: error.lineno,
-                colno: error.colno
-            });
             this.statusSpan.textContent = 'error';
             this.showToast('Worker error: ' + error.message, 'error');
         });
     }
-    
-    // private initWorker() {
-    //     this.statusSpan.textContent = 'starting worker...';
-    //     
-    //     this.worker = new Worker(new URL('./worker.js', import.meta.url), {
-    //         type: 'module'
-    //     });
-    //     
-    //     this.worker.addEventListener('message', (e) => {
-    //         const { id, type, success, payload, error } = e.data;
-    //         
-    //         if (type === 'ready') {
-    //             this.statusSpan.textContent = 'ready';
-    //             this.loadConsoles();
-    //             return;
-    //         }
-    //         
-    //         const pending = this.pendingRequests.get(id);
-    //         if (pending) {
-    //             if (success) {
-    //                 pending.resolve(payload);
-    //             } else {
-    //                 pending.reject(new Error(error));
-    //             }
-    //             this.pendingRequests.delete(id);
-    //         }
-    //     });
-    //     
-    //     this.worker.addEventListener('error', (error) => {
-    //         this.statusSpan.textContent = 'error';
-    //         this.showToast('Worker error: ' + error.message, 'error');
-    //     });
-    // }
     
     private async sendRequest(type: string, payload?: any): Promise<any> {
         return new Promise((resolve, reject) => {

@@ -27,10 +27,10 @@ rm -rf public/dist
 rm -rf worker/pkg worker/target
 success "Clean complete"
 
-# Build WASM com target wasip1
-status "Building WASM module (target: wasm32-wasip1)..."
+# Build WASM
+status "Building WASM module..." 
 cd worker
-if wasm-pack build --target web --out-dir ../public/dist/ --release -- --target wasm32-wasip1; then
+if wasm-pack build --target web --out-dir ../public/dist/ --release; then
     success "WASM build successful"
 else
     error "WASM build failed"
@@ -67,7 +67,13 @@ else
     error "Worker+SAB UI failed"
 fi
 
-# Não precisa buildar worker-sab-ts (já é feito no build do WASM)
+# ✅ IMPORTANTE: Build do worker-sab script
+status "Building Worker+SAB script..."
+if bun run build:worker-sab-ts; then
+    success "Worker+SAB script built"
+else
+    error "Worker+SAB script failed"
+fi
 
 # Show results
 status "Build complete! Files in public/dist:"

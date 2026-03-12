@@ -15,12 +15,8 @@ web-sys = { version = "0.3", features = [
     "console"
 ] }
 
-# [package.metadata.wasm-pack]
-# # Configuração global
-# default-release-profile = true
-
 [package.metadata.wasm-pack.profile.release]
-wasm-opt = ["-O4", "--enable-mutable-globals", "--enable-bulk-memory"]  # ← ARRAY DIRETO
+wasm-opt = false
 
 [profile.release]
 opt-level = "z"

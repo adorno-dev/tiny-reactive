@@ -8,7 +8,11 @@
     "noEmit": true,
     "strict": true,
     "esModuleInterop": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "typeRoots": ["./node_modules/@types", "./public/dist"],
+    "paths": {
+      "*-wasm": ["./public/dist/*"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "worker"]

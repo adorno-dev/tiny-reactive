@@ -198,7 +198,7 @@ impl App {
     /// Processa comandos via SAB
     pub fn process_command(&mut self, view: &Int32Array) -> Result<(), JsValue> {
         // ========== PARTE 1: LEITURA ATÔMICA (UNSAFE) ==========
-        let (op, id, data_len) = unsafe {
+        let (op, id, data_len) = {
             let cmd = Atomics::load(view, 0)?;
             if cmd == 0 {
                 return Ok(());
@@ -267,43 +267,43 @@ impl App {
         };
 
         // ========== PARTE 3: ESCRITA ATÔMICA (UNSAFE) ==========
-        unsafe {
-            match js_result {
-                Ok(val) => {
-                    let json = js_sys::JSON::stringify(&val)?;
-                    let result_str = json.as_string().unwrap_or_default();
-                    let result_bytes = result_str.into_bytes();
-                    
-                    Atomics::store(view, 0, 2)?;
-                    Atomics::store(view, 1, result_bytes.len() as i32)?;
-                    
-                    let buffer = ArrayBuffer::from(view.buffer());
-                    let result_view = Uint8Array::new_with_byte_offset_and_length(
-                        &buffer.into(),
-                        16,
-                        result_bytes.len() as u32
-                    );
-                    result_view.copy_from(&result_bytes);
-                },
-                Err(e) => {
-                    let error_str = e.as_string().unwrap_or("Unknown error".to_string());
-                    let error_bytes = error_str.into_bytes();
-                    
-                    Atomics::store(view, 0, 2)?;
-                    Atomics::store(view, 1, error_bytes.len() as i32)?;
-                    
-                    let buffer = ArrayBuffer::from(view.buffer());
-                    let error_view = Uint8Array::new_with_byte_offset_and_length(
-                        &buffer.into(),
-                        16,
-                        error_bytes.len() as u32
-                    );
-                    error_view.copy_from(&error_bytes);
-                }
+ 
+        match js_result {
+            Ok(val) => {
+                let json = js_sys::JSON::stringify(&val)?;
+                let result_str = json.as_string().unwrap_or_default();
+                let result_bytes = result_str.into_bytes();
+                
+                Atomics::store(view, 0, 2)?;
+                Atomics::store(view, 1, result_bytes.len() as i32)?;
+                
+                let buffer = ArrayBuffer::from(view.buffer());
+                let result_view = Uint8Array::new_with_byte_offset_and_length(
+                    &buffer.into(),
+                    16,
+                    result_bytes.len() as u32
+                );
+                result_view.copy_from(&result_bytes);
+            },
+            Err(e) => {
+                let error_str = e.as_string().unwrap_or("Unknown error".to_string());
+                let error_bytes = error_str.into_bytes();
+                
+                Atomics::store(view, 0, 2)?;
+                Atomics::store(view, 1, error_bytes.len() as i32)?;
+                
+                let buffer = ArrayBuffer::from(view.buffer());
+                let error_view = Uint8Array::new_with_byte_offset_and_length(
+                    &buffer.into(),
+                    16,
+                    error_bytes.len() as u32
+                );
+                error_view.copy_from(&error_bytes);
             }
-
-            Atomics::notify(view, 0, 1)?;
         }
+
+        Atomics::notify(view, 0)?;
+  
 
         Ok(())
     }
