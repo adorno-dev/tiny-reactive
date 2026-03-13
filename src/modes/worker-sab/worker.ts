@@ -1,20 +1,55 @@
 /// <reference lib="webworker" />
 
-let sab: SharedArrayBuffer;
+const MEMORY_PAGES = 1024; // 1024 páginas * 64KB = 64MB
 
-// Carrega o WASM puro (sem glue code)
-WebAssembly.instantiateStreaming(fetch('/dist/worker_bg.wasm'), {})
-    .then(async ({ instance }) => {
-        const exports = instance.exports as any;
+// Cria a memória compartilhada
+const memory = new WebAssembly.Memory({
+    initial: MEMORY_PAGES,
+    maximum: MEMORY_PAGES,
+    shared: true
+});
+
+// O SAB é o buffer da memória
+const sab = memory.buffer as unknown as SharedArrayBuffer;
+const view = new Int32Array(sab);
+
+// Imports que o WASM espera
+const imports = {
+    env: { memory }
+};
+
+// Carrega o WASM com a memória compartilhada
+WebAssembly.instantiateStreaming(fetch('/dist/worker_sab_bg.wasm'), imports)  // ← NOME CORRETO!
+    .then(({ instance }) => {
+        const wasm = instance.exports as any;
+        console.log('🟢 Worker: WASM carregado!', Object.keys(wasm));
         
-        sab = new SharedArrayBuffer(1024 * 1024);
-        const sabPtr = new Uint8Array(sab).byteOffset;
+        // AVISA MAIN THREAD ANTES DE INICIAR O RUST!
+        self.postMessage({ type: 'READY', sab });
         
-        exports.set_sab(sabPtr, sab.byteLength);
-        exports.run();
+        // Inicia o Rust (start não bloqueia)
+        if (wasm.start) {
+            wasm.start();
+        } else if (wasm.run) {
+            wasm.run();
+        }
         
-        self.postMessage({ type: 'ready', sab });
+        // Escuta resultados
+        function listen() {
+            const wait = Atomics.waitAsync(view, 0, 0);
+            if (wait.async) {
+                (wait.value as Promise<any>).then(() => {
+                    if (view[0] === 2) {
+                        self.postMessage({ type: 'RESULT' });
+                    }
+                    view[0] = 0;
+                    listen();
+                });
+            }
+        }
+        listen();
     })
     .catch(error => {
-        console.error('❌ Failed to load WASM:', error);
+        console.error('🔴 Worker: Erro:', error);
+        self.postMessage({ type: 'ERROR', error: String(error) });
     });

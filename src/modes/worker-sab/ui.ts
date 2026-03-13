@@ -14,7 +14,9 @@ export class UIWorkerSAB {
     
     private sab: SharedArrayBuffer | null = null;
     private view: Int32Array | null = null;
+    private dataView: Uint8Array | null = null;
     private consoles: any[] = [];
+    private ready = false;
     
     constructor() {
         this.tableBody = document.getElementById('table-body')!;
@@ -32,7 +34,7 @@ export class UIWorkerSAB {
     }
     
     private initWorker() {
-        console.log('🔵 SAB: initWorker');
+        console.log('🔵 UI: Iniciando worker...');
         this.statusSpan.textContent = 'starting worker...';
         
         this.worker = new Worker(new URL('./worker-sab.js', import.meta.url), {
@@ -40,41 +42,126 @@ export class UIWorkerSAB {
         });
         
         this.worker.addEventListener('message', (e) => {
-            const { type, sab } = e.data;
+            console.log('🔵 UI: Mensagem do worker:', e.data);
             
-            if (type === 'ready') {
-                console.log('🔵 SAB: worker ready, SAB received');
+            const { type, sab, error } = e.data;
+            
+            if (type === 'READY') {
+                console.log('🔵 UI: Worker READY! SAB recebido');
                 this.sab = sab;
                 this.view = new Int32Array(sab);
+                this.dataView = new Uint8Array(sab);
+                this.ready = true;
                 this.statusSpan.textContent = 'ready';
                 this.sabSpan.textContent = 'active';
+                
                 this.loadConsoles();
-                this.setupMessageListener();
+                this.waitForResults();
+            }
+            
+            if (type === 'RESULT') {
+                console.log('🔵 UI: Worker notificou RESULT');
+                this.readResult();
+            }
+            
+            if (type === 'ERROR') {
+                console.error('🔴 UI: Erro no worker:', error);
+                this.statusSpan.textContent = 'error';
+                this.showToast('Worker error: ' + error, 'error');
             }
         });
         
         this.worker.addEventListener('error', (error) => {
-            console.error('🔴 SAB worker error:', error);
+            console.error('🔴 UI: Worker error event:', error);
             this.statusSpan.textContent = 'error';
             this.showToast('Worker error: ' + error.message, 'error');
         });
     }
     
-    private setupMessageListener() {
-        // Escuta mensagens do worker (postMessage normal)
-        this.worker.addEventListener('message', (e) => {
-            const { type, data } = e.data;
-            if (type === 'result') {
-                this.consoles = data;
-                this.renderTable(this.consoles);
-                this.totalSpan.textContent = this.consoles.length.toString();
+    private async waitForResults() {
+        if (!this.view) return;
+        console.log('👂 UI: Aguardando resultados...');
+        
+        const listen = async () => {
+            const wait = Atomics.waitAsync(this.view!, 0, 0);
+            
+            if (wait.async) {
+                await wait.value;
+                console.log('🔔 UI: Acordou! view[0]=', this.view![0]);
+                
+                const cmd = this.view![0];
+                if (cmd === 2) {
+                    const dataLen = this.view![1];
+                    console.log('📦 UI: Resultado pronto, len=', dataLen);
+                    
+                    if (dataLen > 0 && this.dataView && this.sab) {
+                        const resultBytes = this.dataView.slice(16, 16 + dataLen);
+                        const resultStr = new TextDecoder().decode(resultBytes);
+                        
+                        try {
+                            this.consoles = JSON.parse(resultStr);
+                            console.log('✅ UI: Dados recebidos:', this.consoles.length);
+                            this.renderTable(this.consoles);
+                            this.totalSpan.textContent = this.consoles.length.toString();
+                        } catch (e) {
+                            console.error('🔴 UI: Erro ao parsear resultado:', e);
+                        }
+                    }
+                    this.view![0] = 0;
+                }
+                listen();
             }
-        });
+        };
+        
+        listen();
     }
     
-    private sendCommand(op: number, id: number, data: any) {
-        // Usa postMessage normal para comandos (mais simples)
-        this.worker.postMessage({ op, id, data });
+    private sendCommand(op: number, data: any = {}) {
+        if (!this.ready || !this.view || !this.dataView || !this.sab) {
+            console.log('⏳ UI: Worker não pronto, comando enfileirado');
+            setTimeout(() => this.sendCommand(op, data), 100);
+            return;
+        }
+        
+        const encoder = new TextEncoder();
+        const dataBytes = encoder.encode(JSON.stringify(data));
+        
+        // 🔥 LOG CRUCIAL: ver data_len
+        console.log('📤 UI: Enviando comando', op, 'data_len=', dataBytes.length, 'dados:', data);
+        
+        // Escreve comando no SAB
+        this.view[1] = op;
+        this.view[2] = dataBytes.length;
+        
+        if (dataBytes.length > 0) {
+            this.dataView.set(dataBytes, 16);
+        }
+        
+        // Sinaliza worker
+        this.view[0] = 1;
+        Atomics.notify(this.view, 0, 1);
+        console.log('✅ UI: Comando enviado, notificação enviada');
+    }
+    
+    private readResult() {
+        if (!this.view || !this.dataView || !this.sab) return;
+        
+        const dataLen = this.view[1];
+        console.log('📦 UI: Lendo resultado, data_len=', dataLen);
+        
+        if (dataLen > 0) {
+            const resultBytes = this.dataView.slice(16, 16 + dataLen);
+            const resultStr = new TextDecoder().decode(resultBytes);
+            
+            try {
+                this.consoles = JSON.parse(resultStr);
+                console.log('✅ UI: Dados parseados:', this.consoles.length);
+                this.renderTable(this.consoles);
+                this.totalSpan.textContent = this.consoles.length.toString();
+            } catch (e) {
+                console.error('🔴 UI: Erro ao parsear resultado:', e);
+            }
+        }
     }
     
     private initEventListeners() {
@@ -109,10 +196,13 @@ export class UIWorkerSAB {
     }
     
     private loadConsoles() {
-        this.sendCommand(5, 0, {}); // LIST
+        console.log('📥 UI: Carregando consoles...');
+        this.sendCommand(5); // LIST
     }
     
     private renderTable(consoles: any[]) {
+        console.log('🎨 UI: Renderizando tabela com', consoles.length, 'itens');
+        
         if (!consoles || consoles.length === 0) {
             this.tableBody.innerHTML = '<tr><td colspan="8" class="empty-message">no consoles found</td></tr>';
             return;
@@ -188,10 +278,12 @@ export class UIWorkerSAB {
         };
         
         if (this.currentEditId) {
-            this.sendCommand(3, this.currentEditId, data); // UPDATE
+            console.log('📝 UI: Atualizando console', this.currentEditId, data);
+            this.sendCommand(3, { id: this.currentEditId, ...data });
             this.showToast('Console updated successfully', 'success');
         } else {
-            this.sendCommand(1, 0, data); // CREATE
+            console.log('➕ UI: Criando console', data);
+            this.sendCommand(1, data);
             this.showToast('Console created successfully', 'success');
         }
         
@@ -222,7 +314,8 @@ export class UIWorkerSAB {
     public deleteConsole(id: number) {
         this.confirm('Are you sure you want to delete this console?').then((confirmed) => {
             if (confirmed) {
-                this.sendCommand(4, id, {}); // DELETE
+                console.log('🗑️ UI: Deletando console', id);
+                this.sendCommand(4, { id });
                 this.showToast('Console deleted successfully', 'success');
             }
         });
